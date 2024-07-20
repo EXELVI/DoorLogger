@@ -23,6 +23,9 @@ WiFiSSLClient client;
 
 bool lastState = false;
 
+int counter = 0; // How many times the door has been opened in a day
+int lastDay = 0; // Check if the day has changed to reset the counter
+
 void setup()
 {
   Serial.begin(9600);
@@ -46,10 +49,21 @@ void setup()
   timeClient.begin();
   timeClient.update();
 
+  RTCTime timeToSet = timeClient.getEpochTime();
+  RTC.setTime(timeToSet);
+
+  RTCTime currentTime;
+  RTC.getTime(currentTime);
+
+  RTC.getTime(currentTime);
+  Serial.println("The RTC was just set to: " + String(currentTime));
 }
 
 void loop()
 {
+  RTCTime currentTime;
+  RTC.getTime(currentTime);
+
   if (client.available())
   {
     Serial.println("client available");
@@ -65,6 +79,12 @@ void loop()
       if (sensorValue == HIGH)
       {
         Serial.println("Door opened");
+        if (lastDay != currentTime.getDayOfMonth())
+        {
+          counter = 0;
+          lastDay = currentTime.getDayOfMonth();
+        }
+        counter++;
         sendWebhook(sensorValue);
       }
       else
@@ -79,9 +99,28 @@ void loop()
   }
 }
 
+String listFormats[5] = {"RELATIVE", "DATE", "TIME", "SHORT TIME", "FULL"};
+String listUnformatted[5] = {"R", "D", "T", "t", "F"};
+
 String discordTimestamp(int timestamp, String format)
 {
+  int index = -1;
 
+  for (int i = 0; i < 5; i++)
+  {
+    if (listFormats[i].equalsIgnoreCase(format))
+    {
+      index = i;
+      break;
+    }
+  }
+
+  if (index == -1)
+  {
+    return "Invalid format";
+  }
+
+  return "<t:" + String(timestamp) + ':' + listUnformatted[index] + '>';
 }
 
 void sendWebhook(int sensorValue)
@@ -93,8 +132,10 @@ void sendWebhook(int sensorValue)
   JSONVar body;
   body["content"] = content;
   body["embeds"][0]["title"] = "The door was " + String(sensorValue ? "opened" : "closed") + "!";
-  body["embeds"][0]["description"] = "The door was " + String(sensorValue ? "opened" : "closed") + "at " + discordTimestamp(currentTime.getEpochTime(), "FULL");
+  body["embeds"][0]["description"] = "The door was " + String(sensorValue ? "opened" : "closed") + " " + discordTimestamp(currentTime.getUnixTime(), "RELATIVE");
   body["embeds"][0]["color"] = sensorValue ? 3931904 : 16711680;
+  body["embeds"][0]["fields"][0]["name"] = "Opened today";
+  body["embeds"][0]["fields"][0]["value"] = String(counter) + " times";
 
   String bodyString = JSON.stringify(body);
 
