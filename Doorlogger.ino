@@ -1,6 +1,7 @@
 #include "WiFiS3.h"
 #include "WiFiSSLClient.h"
 #include "arduino_secrets.h"
+#include <Arduino_JSON.h>
 
 #define magneticSwitch 2
 
@@ -10,7 +11,7 @@ int keyIndex = 0;  // your network key Index number (needed only for WEP)
 
 int status = WL_IDLE_STATUS;
 
-char server[] = "google.com";
+char server[] = "discord.com";  
 char path[] = SECRET_webhook;
 WiFiSSLClient client;
 
@@ -34,13 +35,10 @@ void setup() {
 
 void loop() {
   if (client.available()) {
-
     Serial.println("client available");
-
     String line = client.readStringUntil('\r');
     Serial.println(line);
   } else {
-
     int sensorValue = digitalRead(magneticSwitch);
 
     if (sensorValue != lastState) {
@@ -59,25 +57,45 @@ void loop() {
 }
 
 void sendWebhook(int sensorValue) {
+  String content = sensorValue ? "The door was opened!" : "The door was closed!";
+  JSONVar body;
+    body["content"] = content;
+    body["embeds"][0]["title"] = "The door was " + String(sensorValue ? "opened" : "closed") + "!";
+    body["embeds"][0]["description"] = "The door was " + String(sensorValue ? "opened" : "closed") + "!";
+    body["embeds"][0]["color"] = sensorValue ? 3931904 : 16711680;
 
-  String body = "{\"embeds\":[{\"title\":\"The door was ";
-  body.concat(sensorValue ? "opened" : "closed");
-  body.concat("!\",\"description\":\"The door was ");
-  body.concat(sensorValue ? "opened" : "closed");
-  body.concat("\",\"color\": ");
-  body.concat(String(sensorValue ? 3931904 : 16711680));
-  body.concat("}]}");
+    String bodyString = JSON.stringify(body);
+
+  /*"{\"embeds\":[{\"title\":\"The door was ";
+    body.concat(sensorValue ? "opened" : "closed");
+    body.concat("!\",\"description\":\"The door was ");
+    body.concat(sensorValue ? "opened" : "closed");
+    body.concat("\",\"color\": ");
+    body.concat(String(sensorValue ? 3931904 : 16711680));
+    body.concat("}]}");*/
 
   Serial.println(body);
+  Serial.println(bodyString);
+
+  Serial.print("Connecting to server: ");
+  Serial.println(server);
 
   if (client.connect(server, 443)) {
     Serial.println("connected to server");
     client.println("POST " + String(path) + " HTTP/1.1");
     client.println("Host: " + String(server));
     client.println("Content-Type: application/json");
-    client.println("Content-Length: " + body.length());
+    client.println("Content-Length: " + bodyString.length());
     client.println();
-    client.println(body);
+    client.println(bodyString);
+
+    while (client.connected()) {
+      String response = client.readStringUntil('\n');
+      if (response.length() == 0) {
+        break;
+      }
+      Serial.println(response);
+    }
     client.stop();
   } else {
     Serial.println("connection failed");
