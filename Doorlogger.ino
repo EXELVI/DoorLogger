@@ -11,7 +11,7 @@ int keyIndex = 0;  // your network key Index number (needed only for WEP)
 
 int status = WL_IDLE_STATUS;
 
-char server[] = "discord.com";  
+char server[] = "discord.com";
 char path[] = SECRET_webhook;
 WiFiSSLClient client;
 
@@ -19,7 +19,7 @@ bool lastState = false;
 
 void setup() {
   Serial.begin(9600);
-  pinMode(magneticSwitch, INPUT);
+  pinMode(magneticSwitch, INPUT_PULLUP);
   // attempt to connect to Wifi network:
   while (status != WL_CONNECTED) {
     Serial.print("Attempting to connect to WPA SSID: ");
@@ -59,20 +59,12 @@ void loop() {
 void sendWebhook(int sensorValue) {
   String content = sensorValue ? "The door was opened!" : "The door was closed!";
   JSONVar body;
-    body["content"] = content;
-    body["embeds"][0]["title"] = "The door was " + String(sensorValue ? "opened" : "closed") + "!";
-    body["embeds"][0]["description"] = "The door was " + String(sensorValue ? "opened" : "closed") + "!";
-    body["embeds"][0]["color"] = sensorValue ? 3931904 : 16711680;
+  body["content"] = content;
+  body["embeds"][0]["title"] = "The door was " + String(sensorValue ? "opened" : "closed") + "!";
+  body["embeds"][0]["description"] = "The door was " + String(sensorValue ? "opened" : "closed") + "!";
+  body["embeds"][0]["color"] = sensorValue ? 3931904 : 16711680;
 
-    String bodyString = JSON.stringify(body);
-
-  /*"{\"embeds\":[{\"title\":\"The door was ";
-    body.concat(sensorValue ? "opened" : "closed");
-    body.concat("!\",\"description\":\"The door was ");
-    body.concat(sensorValue ? "opened" : "closed");
-    body.concat("\",\"color\": ");
-    body.concat(String(sensorValue ? 3931904 : 16711680));
-    body.concat("}]}");*/
+  String bodyString = JSON.stringify(body);
 
   Serial.println(body);
   Serial.println(bodyString);
@@ -85,7 +77,8 @@ void sendWebhook(int sensorValue) {
     client.println("POST " + String(path) + " HTTP/1.1");
     client.println("Host: " + String(server));
     client.println("Content-Type: application/json");
-    client.println("Content-Length: " + bodyString.length());
+    client.println("Content-Length: " + String(bodyString.length()));
+    client.println("Connection: close");
     client.println();
     client.println(bodyString);
 
